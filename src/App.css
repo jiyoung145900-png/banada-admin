@@ -1,0 +1,88 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+/* ========================================= 
+    [기존] 흐르는 문구 애니메이션 
+   ========================================= */
+
+@keyframes marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.marquee-text {
+  display: inline-block;
+  animation: marquee 20s linear infinite;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+/* ========================================= 
+    [신규] 왼쪽 상단 통합 태그 시스템
+   ========================================= */
+
+/* 태그들이 왼쪽 상단에 세로로 예쁘게 쌓이는 박스 */
+.tag-container-main {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: column; /* 수직 정렬 */
+  gap: 5px; /* 태그 간격 */
+  z-index: 20;
+  pointer-events: none; /* 클릭 방해 금지 */
+}
+
+/* 에이스 멤버를 위한 은은한 후광(Glow) 효과 */
+@keyframes softGlow {
+  0%, 100% { 
+    filter: drop-shadow(0 0 2px rgba(212, 175, 55, 0.5));
+  }
+  50% { 
+    filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.8));
+  }
+}
+
+.effect-glow {
+  animation: softGlow 3s infinite ease-in-out;
+}
+
+/* 스크롤바 숨기기 */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
