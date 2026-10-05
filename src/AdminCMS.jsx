@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { uploadToCloudinary, generateVideoThumbnail } from "./CloudinaryService"; 
 import { translateManagerFields, getUsage } from "./TranslationService"; // ★ [신규] DeepL 번역
+import AboutBannersView from "./AboutBannersView"; // ★ [신규] BANADA 소개 베너 관리
 
 export default function AdminCMS({ 
   adminPreviewMode, setAdminPreviewMode,
@@ -58,6 +59,7 @@ export default function AdminCMS({
   const [translatingVideo, setTranslatingVideo] = useState(false);
   const [showManagerModal, setShowManagerModal] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
+  const [showAboutBannersModal, setShowAboutBannersModal] = useState(false); // ★ [신규] BANADA 소개 베너 모달
   const [editingVideoId, setEditingVideoId] = useState(null);
   const [tempVideoUrl, setTempVideoUrl] = useState(""); 
   const [tempThumbnailUrl, setTempThumbnailUrl] = useState(""); // ★ [신규] 영상 썸네일 URL
@@ -692,7 +694,12 @@ export default function AdminCMS({
 
         <div style={cmsStyles.sectionBox}>
           <label style={cmsStyles.sectionLabel}>❸ 컨텐츠 데이터 관리</label>
-          <button onClick={() => setShowManagerModal(true)} style={cmsStyles.modalOpenBtn}>매니저 프로필 관리 ({members.length}명)</button>
+          {/* ★ [신규] BANADA 소개 베너 관리 (매니저 섹션 대체) */}
+          <button 
+            onClick={() => setShowAboutBannersModal(true)} 
+            style={{...cmsStyles.modalOpenBtn, background: '#D4AF37', color: '#000'}}
+          >✨ BANADA 소개 베너 관리</button>
+          <button onClick={() => setShowManagerModal(true)} style={{...cmsStyles.modalOpenBtn, marginTop: 10}}>매니저 프로필 관리 ({members.length}명)</button>
           <button onClick={() => setShowVideoModal(true)} style={{...cmsStyles.modalOpenBtn, background: '#2196F3', marginTop: 10}}>비디오 갤러리 관리 ({videos.length}개)</button>
           <button onClick={() => openIndependent && openIndependent()} style={{...cmsStyles.modalOpenBtn, background: '#9C27B0', marginTop: 10}}>회원 포인트 관리 (독립 어드민)</button>
         </div>
@@ -937,6 +944,19 @@ export default function AdminCMS({
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ★ [신규] BANADA 소개 베너 관리 모달 */}
+      {showAboutBannersModal && (
+        <div style={modalStyles.overlay}>
+          <div style={modalStyles.container}>
+            <div style={modalStyles.header}>
+              <h2 style={{color: '#D4AF37'}}>✨ BANADA 소개 베너 관리</h2>
+              <button onClick={() => setShowAboutBannersModal(false)} style={modalStyles.closeBtn}>닫기</button>
+            </div>
+            <AboutBannersView />
           </div>
         </div>
       )}
