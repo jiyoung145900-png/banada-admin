@@ -15,6 +15,7 @@ export default function AdminCMS({
   slideImagesEn, setSlideImagesEn,
   videos, setVideos,
   adminPw, setAdminPw, telegramLink, setTelegramLink,
+  reviewAccessCode, setReviewAccessCode, // ★ [신규] 후기 작성 추천코드
   noticeText, setNoticeText,
   userSiteUrl, setUserSiteUrl,
   saveToFirebase, 
@@ -336,6 +337,7 @@ export default function AdminCMS({
       adminPw: adminPw,
       noticeText: noticeText,
       userSiteUrl: userSiteUrl,
+      reviewAccessCode: reviewAccessCode, // ★ [신규] 후기 작성 추천코드
     });
     setLoading(false);
     if (success) {
@@ -706,6 +708,20 @@ export default function AdminCMS({
               value={telegramLink || ""} 
               onChange={e => setTelegramLink(e.target.value)} 
             />
+          </div>
+          {/* ★ [신규] 후기 작성 추천코드 - VIP 전용 서비스 */}
+          <div style={cmsStyles.fieldGroup}>
+            <label style={cmsStyles.fieldLabel}>⭐ 후기 작성 추천코드 (VIP 전용)</label>
+            <input 
+              type="text" 
+              style={cmsStyles.textInput} 
+              placeholder="예: 123456 (이 코드로 가입한 회원만 후기 작성 가능)" 
+              value={reviewAccessCode || ""} 
+              onChange={e => setReviewAccessCode(e.target.value)} 
+            />
+            <p style={{fontSize: 10, color: '#D4AF37', margin: '6px 0 0 0'}}>
+              💡 이 추천코드로 가입한 회원만 후기를 작성할 수 있습니다. 비워두면 모든 회원이 작성 가능합니다.
+            </p>
           </div>
           <div style={cmsStyles.fieldGroup}>
             <label style={cmsStyles.fieldLabel}>관리자 접속 비밀번호</label>

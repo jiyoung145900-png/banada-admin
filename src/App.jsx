@@ -44,6 +44,7 @@ export default function App() {
   const [topAdImage2En, setTopAdImage2En] = useState(null);
   const [telegramLink, setTelegramLink] = useState("https://t.me/BANADA_OFFICIAL");
   const [noticeText, setNoticeText] = useState("📢 BANADA에 오신 것을 환영합니다!");
+  const [reviewAccessCode, setReviewAccessCode] = useState(""); // ★ [신규] 후기 작성 추천코드
   const [adminPw, setAdminPw] = useState("");
   const [gamePw, setGamePw] = useState("");
 
@@ -105,6 +106,7 @@ export default function App() {
         if (data.topAdImage2_en !== undefined) setTopAdImage2En(data.topAdImage2_en);
         if (data.telegramLink) setTelegramLink(data.telegramLink);
         if (data.noticeText !== undefined) setNoticeText(data.noticeText);
+        if (data.reviewAccessCode !== undefined) setReviewAccessCode(data.reviewAccessCode); // ★ [신규]
         if (data.adminPassword) setAdminPw(data.adminPassword);
         else if (data.adminPw) setAdminPw(data.adminPw);
         if (data.gamePw) setGamePw(data.gamePw);
@@ -150,7 +152,7 @@ export default function App() {
       videos, innerLogo, topAdImage, topAdImage2,
       topAdImage_ja: topAdImageJa, topAdImage2_ja: topAdImage2Ja,
       topAdImage_en: topAdImageEn, topAdImage2_en: topAdImage2En,
-      telegramLink, noticeText,
+      telegramLink, noticeText, reviewAccessCode, // ★ [신규]
     });
   };
 
@@ -297,6 +299,7 @@ export default function App() {
           adminPw={adminPw} setAdminPw={setAdminPw}
           telegramLink={telegramLink} setTelegramLink={setTelegramLink}
           noticeText={noticeText} setNoticeText={setNoticeText}
+          reviewAccessCode={reviewAccessCode} setReviewAccessCode={setReviewAccessCode} // ★ [신규]
           userSiteUrl={userSiteUrl} setUserSiteUrl={setUserSiteUrl}
           openIndependent={() => setMode("game")}
           saveToFirebase={saveToFirebase}
