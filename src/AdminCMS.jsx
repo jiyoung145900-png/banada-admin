@@ -716,18 +716,18 @@ export default function AdminCMS({
               onChange={e => setTelegramLink(e.target.value)} 
             />
           </div>
-          {/* ★ [신규] 후기 작성 추천코드 - VIP 전용 서비스 */}
+          {/* ★ [신규] 후기 작성 PIN - VIP 전용 서비스 */}
           <div style={cmsStyles.fieldGroup}>
-            <label style={cmsStyles.fieldLabel}>⭐ 후기 작성 추천코드 (VIP 전용)</label>
+            <label style={cmsStyles.fieldLabel}>🔒 후기 작성 PIN (VIP 전용)</label>
             <input 
               type="text" 
               style={cmsStyles.textInput} 
-              placeholder="예: 123456 (이 코드로 가입한 회원만 후기 작성 가능)" 
+              placeholder="예: 123456 (후기 작성 시 입력해야 하는 PIN)" 
               value={reviewAccessCode || ""} 
               onChange={e => setReviewAccessCode(e.target.value)} 
             />
             <p style={{fontSize: 10, color: '#D4AF37', margin: '6px 0 0 0'}}>
-              💡 이 추천코드로 가입한 회원만 후기를 작성할 수 있습니다. 비워두면 모든 회원이 작성 가능합니다.
+              💡 유저가 후기 작성 버튼을 누르면 이 PIN을 입력해야 작성 가능합니다. 비워두면 모든 회원이 작성 가능합니다. (3회 실패 시 5분 잠금)
             </p>
           </div>
           <div style={cmsStyles.fieldGroup}>
