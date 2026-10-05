@@ -263,7 +263,9 @@ export default function ReviewsView() {
             <div key={review.id} style={s.reviewRow} onClick={() => setSelectedReview(review)}>
               <div style={{...s.cell, flex: '0 0 80px'}}>
                 {review.mediaType === "video" ? (
-                  <div style={s.videoThumb}>🎬</div>
+                  review.thumbnailUrl
+                    ? <img src={review.thumbnailUrl} style={s.thumb} alt="" />
+                    : <div style={s.videoThumb}>🎬</div>
                 ) : (
                   <img src={review.mediaUrl} style={s.thumb} alt="" />
                 )}
@@ -367,6 +369,7 @@ export default function ReviewsView() {
                 {selectedReview.mediaType === "video" ? (
                   <video 
                     src={selectedReview.mediaUrl} 
+                    poster={selectedReview.thumbnailUrl || undefined}
                     style={s.modalMedia}
                     controls
                     playsInline
