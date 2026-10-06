@@ -3,6 +3,7 @@ import { uploadToCloudinary, generateVideoThumbnail } from "./CloudinaryService"
 import { translateManagerFields, getUsage } from "./TranslationService"; // ★ [신규] DeepL 번역
 import AboutBannersView from "./AboutBannersView"; // ★ [신규] BANADA 소개 베너 관리
 import ReviewsView from "./ReviewsView"; // ★ [신규] 후기 관리 (삭제 가능)
+import FakeNicknameView from "./FakeNicknameView"; // ★ [신규] 가짜 닉네임 관리
 
 export default function AdminCMS({ 
   adminPreviewMode, setAdminPreviewMode,
@@ -62,6 +63,7 @@ export default function AdminCMS({
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [showAboutBannersModal, setShowAboutBannersModal] = useState(false); // ★ [신규] BANADA 소개 베너 모달
   const [showReviewsModal, setShowReviewsModal] = useState(false); // ★ [신규] 후기 관리 모달
+  const [showFakeNickModal, setShowFakeNickModal] = useState(false); // ★ [신규] 가짜 닉네임 관리
   const [editingVideoId, setEditingVideoId] = useState(null);
   const [tempVideoUrl, setTempVideoUrl] = useState(""); 
   const [tempThumbnailUrl, setTempThumbnailUrl] = useState(""); // ★ [신규] 영상 썸네일 URL
@@ -706,6 +708,11 @@ export default function AdminCMS({
             onClick={() => setShowReviewsModal(true)} 
             style={{...cmsStyles.modalOpenBtn, background: '#FF6B9D', color: '#fff', marginTop: 10}}
           >⭐ 후기 관리 (삭제)</button>
+          {/* ★ [신규] 가짜 닉네임 관리 */}
+          <button 
+            onClick={() => setShowFakeNickModal(true)} 
+            style={{...cmsStyles.modalOpenBtn, background: '#9C27B0', color: '#fff', marginTop: 10}}
+          >🎭 후기 닉네임 관리</button>
           <button onClick={() => openIndependent && openIndependent()} style={{...cmsStyles.modalOpenBtn, background: '#9C27B0', marginTop: 10}}>회원 포인트 관리 (독립 어드민)</button>
         </div>
 
@@ -809,6 +816,19 @@ export default function AdminCMS({
               <button onClick={() => setShowReviewsModal(false)} style={modalStyles.closeBtn}>닫기</button>
             </div>
             <ReviewsView />
+          </div>
+        </div>
+      )}
+
+      {/* ★ [신규] 가짜 닉네임 관리 모달 */}
+      {showFakeNickModal && (
+        <div style={modalStyles.overlay}>
+          <div style={modalStyles.container}>
+            <div style={modalStyles.header}>
+              <h2 style={{color: '#9C27B0'}}>🎭 후기 닉네임 관리</h2>
+              <button onClick={() => setShowFakeNickModal(false)} style={modalStyles.closeBtn}>닫기</button>
+            </div>
+            <FakeNicknameView />
           </div>
         </div>
       )}
