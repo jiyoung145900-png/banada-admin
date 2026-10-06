@@ -338,7 +338,7 @@ export default function AdminCMS({
     setLoading(true);
     const success = await syncToFirebase({ 
       telegramLink: telegramLink, 
-      adminPw: adminPw,
+      // adminPw: adminPw,  // ★ [보안] 서버 함수에서 관리하므로 저장 안 함
       noticeText: noticeText,
       userSiteUrl: userSiteUrl,
       reviewAccessCode: reviewAccessCode, // ★ [신규] 후기 작성 추천코드
@@ -735,15 +735,13 @@ export default function AdminCMS({
               💡 유저가 후기 작성 버튼을 누르면 이 PIN을 입력해야 작성 가능합니다. 비워두면 모든 회원이 작성 가능합니다. (3회 실패 시 5분 잠금)
             </p>
           </div>
-          <div style={cmsStyles.fieldGroup}>
-            <label style={cmsStyles.fieldLabel}>관리자 접속 비밀번호</label>
-            <input 
-              type="text" 
-              style={cmsStyles.textInput} 
-              placeholder="새 비밀번호 입력" 
-              value={adminPw || ""} 
-              onChange={e => setAdminPw(e.target.value)} 
-            />
+          {/* ★ [보안] 비밀번호는 Vercel 환경변수에서 관리 - UI에서 변경 불가 */}
+          <div style={{...cmsStyles.fieldGroup, background: 'rgba(76, 175, 80, 0.08)', border: '1px solid rgba(76, 175, 80, 0.3)', borderRadius: 6, padding: 12}}>
+            <label style={{...cmsStyles.fieldLabel, color: '#4CAF50'}}>🔐 관리자 비밀번호 (서버 관리)</label>
+            <p style={{fontSize: 12, color: '#aaa', margin: '6px 0 0 0', lineHeight: 1.5}}>
+              비밀번호는 보안을 위해 Vercel 환경변수(ADMIN_PASSWORD / GAME_PASSWORD)에서만 변경 가능합니다.<br/>
+              변경 방법: Vercel Dashboard → banada-admin → Settings → Environment Variables
+            </p>
           </div>
 
           <div style={cmsStyles.fieldGroup}>
