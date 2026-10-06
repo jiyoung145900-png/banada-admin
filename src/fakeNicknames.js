@@ -88,3 +88,11 @@ export function getFakeNickname(userId, overrides = {}) {
   const index = Math.abs(hash) % FAKE_NICKNAMES.length;
   return FAKE_NICKNAMES[index];
 }
+
+
+// ★ 완전 랜덤 닉네임 뽑기 (후기/댓글 작성 시 사용)
+// - 유저 ID와 상관없이 매번 다름
+// - 작성 시점에 뽑아서 문서에 저장
+export function pickRandomNickname() {
+  return FAKE_NICKNAMES[Math.floor(Math.random() * FAKE_NICKNAMES.length)];
+}
