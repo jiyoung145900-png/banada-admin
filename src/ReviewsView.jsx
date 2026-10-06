@@ -349,13 +349,52 @@ export default function ReviewsView() {
                   <span style={s.infoLabel}>평점:</span>
                   <span style={s.infoValue}>{"⭐".repeat(selectedReview.rating || 0)}</span>
                 </div>
+                {/* ★ [신규] 좋아요 수 수정 가능 */}
                 <div style={s.infoRow}>
-                  <span style={s.infoLabel}>좋아요:</span>
-                  <span style={s.infoValue}>❤️ {selectedReview.likeCount || 0}</span>
+                  <span style={s.infoLabel}>❤️ 좋아요:</span>
+                  <span style={s.infoValue}>
+                    <input
+                      type="number"
+                      min="0"
+                      defaultValue={selectedReview.likeCount || 0}
+                      key={`like-${selectedReview.id}`}
+                      onBlur={async (e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        if (val === (selectedReview.likeCount || 0)) return;
+                        try {
+                          await updateDoc(doc(db, "reviews", selectedReview.id), { likeCount: val });
+                          setSelectedReview({ ...selectedReview, likeCount: val });
+                        } catch (err) { alert("저장 실패: " + err.message); }
+                      }}
+                      style={s.editNum}
+                    />
+                    <span style={{color:'#888', fontSize:11, marginLeft:6}}>Tab/클릭하면 저장</span>
+                  </span>
+                </div>
+                {/* ★ [신규] 조회수 수정 가능 */}
+                <div style={s.infoRow}>
+                  <span style={s.infoLabel}>👁️ 조회수:</span>
+                  <span style={s.infoValue}>
+                    <input
+                      type="number"
+                      min="0"
+                      defaultValue={selectedReview.viewCount || 0}
+                      key={`view-${selectedReview.id}`}
+                      onBlur={async (e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        if (val === (selectedReview.viewCount || 0)) return;
+                        try {
+                          await updateDoc(doc(db, "reviews", selectedReview.id), { viewCount: val });
+                          setSelectedReview({ ...selectedReview, viewCount: val });
+                        } catch (err) { alert("저장 실패: " + err.message); }
+                      }}
+                      style={s.editNum}
+                    />
+                  </span>
                 </div>
                 <div style={s.infoRow}>
-                  <span style={s.infoLabel}>댓글:</span>
-                  <span style={s.infoValue}>💬 {selectedReview.commentCount || 0}</span>
+                  <span style={s.infoLabel}>💬 댓글:</span>
+                  <span style={s.infoValue}>{selectedReview.commentCount || 0} (자동)</span>
                 </div>
                 <div style={s.infoRow}>
                   <span style={s.infoLabel}>작성일:</span>
@@ -739,6 +778,7 @@ const s = {
     background: '#000',
     display: 'block',
   },
+  editNum: { width: 90, padding: '4px 8px', background: 'rgba(255,255,255,0.1)', border: '1px solid #555', borderRadius: 4, color: '#fff', fontSize: 13 },
   mediaUrl: {
     marginTop: 8,
     fontSize: 11,
