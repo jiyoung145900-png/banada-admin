@@ -161,35 +161,32 @@ export default function App() {
     if (!loginId || !loginPw) return alert("아이디/비밀번호를 입력하세요");
     setIsLoggingIn(true);
     try {
-      await authReady;
-      const snap = await getDoc(doc(db, "settings", "global"));
-      const data = snap.exists() ? snap.data() : {};
-      const serverAdminPw = data.adminPw || data.adminPassword || adminPw;
-      const serverGamePw = data.gamePw || gamePw;
+      // ★ [보안] 서버 함수로 로그인 (비밀번호를 서버에서 비교)
+      const res = await fetch("/api/admin-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ loginId, loginPw }),
+      });
+      const result = await res.json();
 
-      if (loginId === "admin") {
-        if (loginPw === serverAdminPw) {
-          // ★★★ [보안] 로그인 성공 시각 저장 - 강제 로그아웃 시스템에서 사용
-          localStorage.setItem("adminLoginAt", String(Date.now()));
-          setMode("cms");
-          setAdminPreviewMode("landing");
-        } else {
-          alert("디자인 관리자 비밀번호가 틀립니다.");
-        }
-      } else if (loginId === "game") {
-        if (loginPw === serverGamePw) {
-          // ★★★ [보안] 로그인 성공 시각 저장 - 강제 로그아웃 시스템에서 사용
-          localStorage.setItem("adminLoginAt", String(Date.now()));
-          setMode("game");
-        } else {
-          alert("게임 관리자 비밀번호가 틀립니다.");
-        }
-      } else {
-        alert("관리자 아이디만 로그인 가능합니다.");
+      if (!res.ok || !result.success) {
+        alert(result.error || "로그인 실패");
+        return;
+      }
+
+      // 로그인 성공
+      localStorage.setItem("adminLoginAt", String(Date.now()));
+      localStorage.setItem("adminToken", result.token);
+
+      if (result.role === "admin") {
+        setMode("cms");
+        setAdminPreviewMode("landing");
+      } else if (result.role === "game") {
+        setMode("game");
       }
     } catch (e) {
-      console.error(e);
-      alert("로그인 오류");
+      console.error("로그인 오류:", e);
+      alert("로그인 오류 - 네트워크를 확인하세요");
     } finally {
       setIsLoggingIn(false);
     }
@@ -197,7 +194,7 @@ export default function App() {
 
   const handleLogout = () => {
     // ★★★ [보안] 로그아웃 시 로그인 시각 제거
-    try { localStorage.removeItem("adminLoginAt"); } catch (e) {}
+    try { localStorage.removeItem("adminLoginAt"); localStorage.removeItem("adminToken"); } catch (e) {}
     setMode(null);
     setLoginId("");
     setLoginPw("");
