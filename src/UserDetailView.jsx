@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { iaStyles } from "./AdminStyles";
 import { TIER_OPTIONS, getCreditInfo, CREDIT_DEFAULT, getTierInfo } from "./MyPage.utils";
 import { db } from "./firebase";
-import { collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
+import { collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, addDoc, serverTimestamp } from "firebase/firestore";
 
 // =========================================================================
 // --- 회원 상세 페이지 ---
@@ -41,6 +41,83 @@ export const UserDetailView = ({
     account: user?.savedBankInfo?.account || "",
     holder: user?.savedBankInfo?.holder || "",
   });
+
+  // ───────────────────────────────────────────────────────────
+  // 🎰 미니게임 포인트 관리 (gamePoints - 다이아와 완전 분리된 재미용)
+  // ───────────────────────────────────────────────────────────
+  const [gamePoints, setGamePoints] = useState(0);
+  const [gamePointsLoading, setGamePointsLoading] = useState(true);
+  const [gamePointsSaving, setGamePointsSaving] = useState(false);
+  const [gamePointsCustom, setGamePointsCustom] = useState("");
+  const [gamePointsLog, setGamePointsLog] = useState([]);
+
+  // 포인트 로드
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      setGamePointsLoading(true);
+      try {
+        const snap = await getDoc(doc(db, "users", user.id));
+        if (snap.exists()) {
+          setGamePoints(Number(snap.data().gamePoints) || 0);
+        } else {
+          setGamePoints(0);
+        }
+      } catch (e) {
+        console.error("gamePoints 로드 실패:", e);
+      }
+      setGamePointsLoading(false);
+    })();
+  }, [user?.id]);
+
+  // 포인트 조정 (충전/차감)
+  const adjustGamePoints = async (delta, memo = "") => {
+    if (!user?.id || gamePointsSaving || delta === 0) return;
+    const newPoints = Math.max(0, gamePoints + delta);
+    setGamePointsSaving(true);
+    try {
+      await updateDoc(doc(db, "users", user.id), {
+        gamePoints: newPoints,
+        gameLastAdjustedAt: Date.now(),
+      });
+      // 감사 로그 (실패해도 조정 자체는 성공)
+      try {
+        await addDoc(collection(db, "admin_audit_log"), {
+          type: "mini_game_points_adjust",
+          userId: user.id,
+          userName: user.nickname || user.id,
+          delta,
+          before: gamePoints,
+          after: newPoints,
+          memo,
+          at: serverTimestamp(),
+        });
+      } catch (logErr) {
+        console.warn("감사 로그 기록 실패 (무시):", logErr);
+      }
+      setGamePoints(newPoints);
+      setGamePointsLog(prev => [{
+        delta, before: gamePoints, after: newPoints,
+        time: new Date().toLocaleTimeString(),
+      }, ...prev].slice(0, 10));
+    } catch (e) {
+      alert("미니게임 포인트 조정 실패: " + e.message);
+    }
+    setGamePointsSaving(false);
+  };
+
+  const handleGpCustom = (sign) => {
+    const amt = parseInt(gamePointsCustom, 10);
+    if (!amt || amt <= 0) return alert("금액을 입력하세요");
+    adjustGamePoints(sign * amt);
+    setGamePointsCustom("");
+  };
+
+  const handleGpReset = () => {
+    if (gamePoints === 0) return;
+    if (!window.confirm(`${user.nickname || user.id}의 미니게임 포인트를 0으로 리셋하시겠습니까?\n현재: ${gamePoints.toLocaleString()}P`)) return;
+    adjustGamePoints(-gamePoints, "리셋");
+  };
 
   useEffect(() => {
     setBankEdit({
@@ -642,6 +719,167 @@ export const UserDetailView = ({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ────────── 🎰 미니게임 포인트 카드 (실제 다이아와 완전 분리) ────────── */}
+      <div style={{...iaStyles.card, background: "linear-gradient(135deg, rgba(230,57,117,0.08), rgba(212,165,116,0.08))", border: "1px solid rgba(212,165,116,0.3)"}}>
+        <h2 style={{...ds.sectionTitle, display: "flex", alignItems: "center", gap: 8}}>
+          🎰 미니게임 포인트 
+          <span style={{fontSize: 11, color: "#8E8E93", fontWeight: 400, letterSpacing: 0}}>· 직원 재미용 (실제 다이아와 분리)</span>
+        </h2>
+
+        {gamePointsLoading ? (
+          <div style={{padding: 20, textAlign: "center", color: "#8E8E93"}}>로딩 중...</div>
+        ) : (
+          <>
+            {/* 현재 포인트 */}
+            <div style={{
+              textAlign: "center",
+              padding: 20,
+              background: "rgba(0,0,0,0.3)",
+              border: "1px solid rgba(212,165,116,0.2)",
+              borderRadius: 12,
+              marginBottom: 16,
+            }}>
+              <div style={{fontSize: 11, color: "#8E8E93", marginBottom: 6, letterSpacing: 2}}>현재 보유</div>
+              <div style={{
+                fontSize: 28,
+                fontWeight: 800,
+                background: "linear-gradient(135deg, #D4A574, #FF6B9D)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+              }}>💎 {gamePoints.toLocaleString()}P</div>
+            </div>
+
+            {/* 빠른 충전 */}
+            <div style={{marginBottom: 12}}>
+              <div style={{fontSize: 11, color: "#D4A574", marginBottom: 8, letterSpacing: 1, fontWeight: 700}}>⚡ 빠른 충전</div>
+              <div style={{display: "flex", gap: 4, flexWrap: "wrap"}}>
+                {[10000, 50000, 100000, 500000, 1000000].map(v => (
+                  <button
+                    key={v}
+                    onClick={() => adjustGamePoints(v)}
+                    disabled={gamePointsSaving}
+                    style={{
+                      flex: "1 1 auto", minWidth: 60, padding: "10px 8px",
+                      background: "linear-gradient(135deg, #D4A574, #B88E5D)",
+                      border: "none", color: "#fff", borderRadius: 6,
+                      cursor: "pointer", fontWeight: 700, fontSize: 12,
+                      opacity: gamePointsSaving ? 0.5 : 1,
+                    }}
+                  >
+                    +{v >= 10000 ? `${v/10000}만` : v}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 빠른 차감 */}
+            <div style={{marginBottom: 12}}>
+              <div style={{fontSize: 11, color: "#FB7185", marginBottom: 8, letterSpacing: 1, fontWeight: 700}}>➖ 빠른 차감</div>
+              <div style={{display: "flex", gap: 4, flexWrap: "wrap"}}>
+                {[10000, 50000, 100000, 500000, 1000000].map(v => (
+                  <button
+                    key={v}
+                    onClick={() => adjustGamePoints(-v)}
+                    disabled={gamePointsSaving || gamePoints < v}
+                    style={{
+                      flex: "1 1 auto", minWidth: 60, padding: "10px 8px",
+                      background: "linear-gradient(135deg, #EF4444, #DC2626)",
+                      border: "none", color: "#fff", borderRadius: 6,
+                      cursor: "pointer", fontWeight: 700, fontSize: 12,
+                      opacity: (gamePointsSaving || gamePoints < v) ? 0.3 : 1,
+                    }}
+                  >
+                    -{v >= 10000 ? `${v/10000}만` : v}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 직접 입력 */}
+            <div style={{marginBottom: 12}}>
+              <div style={{fontSize: 11, color: "#8E8E93", marginBottom: 8, letterSpacing: 1}}>✏️ 직접 입력</div>
+              <div style={{display: "flex", gap: 4}}>
+                <input
+                  type="number"
+                  value={gamePointsCustom}
+                  onChange={(e) => setGamePointsCustom(e.target.value)}
+                  placeholder="금액 입력"
+                  onKeyDown={(e) => { if (e.key === "Enter") handleGpCustom(1); }}
+                  style={{
+                    flex: 1, padding: "10px 12px",
+                    background: "rgba(0,0,0,0.4)",
+                    border: "1px solid rgba(212,165,116,0.3)",
+                    color: "#fff", borderRadius: 6, fontSize: 13, outline: "none",
+                  }}
+                />
+                <button
+                  onClick={() => handleGpCustom(1)}
+                  disabled={gamePointsSaving || !gamePointsCustom}
+                  style={{
+                    padding: "10px 14px", background: "linear-gradient(135deg, #10B981, #059669)",
+                    border: "none", color: "#fff", borderRadius: 6, cursor: "pointer",
+                    fontWeight: 700, fontSize: 12, whiteSpace: "nowrap",
+                  }}
+                >+ 충전</button>
+                <button
+                  onClick={() => handleGpCustom(-1)}
+                  disabled={gamePointsSaving || !gamePointsCustom}
+                  style={{
+                    padding: "10px 14px", background: "linear-gradient(135deg, #EF4444, #DC2626)",
+                    border: "none", color: "#fff", borderRadius: 6, cursor: "pointer",
+                    fontWeight: 700, fontSize: 12, whiteSpace: "nowrap",
+                  }}
+                >- 차감</button>
+              </div>
+            </div>
+
+            {/* 리셋 */}
+            <button
+              onClick={handleGpReset}
+              disabled={gamePointsSaving || gamePoints === 0}
+              style={{
+                width: "100%", padding: 12,
+                background: "transparent",
+                border: "1px solid rgba(239,68,68,0.4)",
+                color: "#EF4444", borderRadius: 6, cursor: "pointer",
+                fontSize: 12, fontWeight: 700, letterSpacing: 1,
+                opacity: (gamePointsSaving || gamePoints === 0) ? 0.3 : 1,
+                marginBottom: gamePointsLog.length > 0 ? 12 : 0,
+              }}
+            >
+              🔄 포인트 0으로 리셋
+            </button>
+
+            {/* 세션 로그 */}
+            {gamePointsLog.length > 0 && (
+              <div>
+                <div style={{fontSize: 11, color: "#8E8E93", marginBottom: 6, letterSpacing: 1}}>📋 이번 세션 조정 내역</div>
+                <div style={{display: "flex", flexDirection: "column", gap: 4, maxHeight: 180, overflowY: "auto"}}>
+                  {gamePointsLog.map((l, i) => (
+                    <div key={i} style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8,
+                      padding: "8px 12px", background: "rgba(0,0,0,0.3)",
+                      borderRadius: 6, fontSize: 12,
+                    }}>
+                      <span style={{
+                        color: l.delta > 0 ? "#34D399" : "#FB7185",
+                        fontWeight: 800, minWidth: 80,
+                      }}>
+                        {l.delta > 0 ? "+" : ""}{l.delta.toLocaleString()}P
+                      </span>
+                      <span style={{color: "#8E8E93", fontWeight: 600, fontSize: 11}}>
+                        {l.before.toLocaleString()} → {l.after.toLocaleString()}
+                      </span>
+                      <span style={{color: "#5A5A5F", fontSize: 10}}>{l.time}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* ────────── 계좌 정보 카드 (기존 유지) ────────── */}
