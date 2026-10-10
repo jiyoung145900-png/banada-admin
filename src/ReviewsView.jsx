@@ -714,6 +714,14 @@ function ReviewDetailModal({
                           style={s.commentBtnSm}
                           title="목록에서 선택"
                         >📋</button>
+                        <button
+                          onClick={() => {
+                            const nick = prompt("닉네임 직접 입력:", c.displayName || c.userNickname || "");
+                            if (nick && nick.trim()) saveCommentNick(c.id, nick.trim());
+                          }}
+                          style={s.commentBtnSm}
+                          title="직접 입력"
+                        >✏️</button>
                         <button 
                           style={s.commentDeleteBtn}
                           onClick={() => onDeleteComment(c.id)}
@@ -799,13 +807,13 @@ const s = {
     color: '#D4AF37', letterSpacing: 0.5,
   },
   reviewRow: {
-    display: 'flex', alignItems: 'center', padding: '12px 16px',
+    display: 'flex', alignItems: 'center', padding: '8px 16px',
     borderBottom: '1px solid #1a1a1a', cursor: 'pointer', transition: 'background 0.15s',
   },
   cell: { padding: '0 8px', fontSize: 12, color: '#ddd' },
-  thumb: { width: 60, height: 60, objectFit: 'cover', borderRadius: 8 },
+  thumb: { width: 44, height: 44, objectFit: 'cover', borderRadius: 6 },
   videoThumb: {
-    width: 60, height: 60, background: '#000', borderRadius: 8,
+    width: 44, height: 44, background: '#000', borderRadius: 6,
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
   },
   userId: { color: '#fff', fontSize: 12, fontWeight: 700, marginBottom: 3 },
