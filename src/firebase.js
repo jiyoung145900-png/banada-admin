@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore"; // ★ getFirestore 대신 initializeFirestore 사용
 import { getAnalytics, isSupported } from "firebase/analytics";
 // ★ [신규] Anonymous Authentication - Firestore 보안 규칙에서 request.auth 조건 사용
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
@@ -18,8 +18,10 @@ const firebaseConfig = {
 // 1) Firebase 초기화
 const app = initializeApp(firebaseConfig);
 
-// 2) Firestore export (기존 코드 유지)
-export const db = getFirestore(app);
+// 2) Firestore export (★ Long Polling 모드 강제 설정으로 프록시/VPN 연결 끊김 방지)
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+});
 
 // 3) Analytics (브라우저/환경에 따라 지원 안 될 수 있어서 안전 처리)
 export let analytics = null;
