@@ -305,12 +305,22 @@ export default function AdminCMS({
 
   const handleFileProcess = async (e, mode, callback) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    console.log("🎬 [DEBUG] 파일 선택됨:", { 
+      name: file?.name, 
+      type: file?.type, 
+      size: file?.size ? (file.size/1024/1024).toFixed(2) + "MB" : "unknown",
+      mode 
+    });
+    if (!file) {
+      console.log("❌ [DEBUG] 파일이 없음");
+      return;
+    }
 
     try {
       setLoading(true);
-      // 전부 R2 (이미지, 비디오 모두)
+      console.log("⏳ [DEBUG] R2 업로드 시작...");
       const url = await uploadToCloudinary(file);
+      console.log("📦 [DEBUG] 업로드 결과:", url);
 
       if (url) {
         callback(url); 
