@@ -1,5 +1,48 @@
 import { useState } from "react";
 import { uploadToCloudinary, generateVideoThumbnail } from "./CloudinaryService"; 
+
+// ===================================================================
+// 🎬 Cloudinary 비디오 업로드 (랜딩 동영상 전용)
+// -------------------------------------------------------------------
+// R2 안 쓰고 Cloudinary 로 바로 올림 (unsigned upload)
+// 무료 플랜: 영상당 최대 100MB
+// ===================================================================
+async function uploadVideoToCloudinary(file) {
+  const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+  
+  if (!CLOUD_NAME || !UPLOAD_PRESET) {
+    throw new Error("Cloudinary 환경변수 설정이 없습니다 (VITE_CLOUDINARY_CLOUD_NAME / VITE_CLOUDINARY_UPLOAD_PRESET)");
+  }
+  
+  if (!file.type?.startsWith("video/")) {
+    throw new Error("동영상 파일만 가능합니다");
+  }
+  
+  const MAX_SIZE = 100 * 1024 * 1024; // 100MB (Cloudinary 무료)
+  if (file.size > MAX_SIZE) {
+    const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+    throw new Error(`영상이 너무 큽니다 (${sizeMB}MB). Cloudinary 무료 플랜은 최대 100MB`);
+  }
+  
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", UPLOAD_PRESET);
+  
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
+    { method: "POST", body: formData }
+  );
+  
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `Cloudinary 업로드 실패 (${res.status})`);
+  }
+  
+  const data = await res.json();
+  console.log("✅ Cloudinary 비디오 업로드 성공:", data.secure_url);
+  return data.secure_url;
+}
 import { translateManagerFields, getUsage } from "./TranslationService"; // ★ [신규] DeepL 번역
 import AboutBannersView from "./AboutBannersView"; // ★ [신규] BANADA 소개 베너 관리
 import ReviewsView from "./ReviewsView"; // ★ [신규] 후기 관리 (삭제 가능)
@@ -309,7 +352,14 @@ export default function AdminCMS({
 
     try {
       setLoading(true);
-      const url = await uploadToCloudinary(file);
+      
+      // 🎬 파일 종류에 따라 다른 업로드:
+      // - 비디오 → Cloudinary (unsigned, 최대 100MB)
+      // - 이미지 → R2 (기존 uploadToCloudinary)
+      const isVideo = file.type?.startsWith("video/");
+      const url = isVideo 
+        ? await uploadVideoToCloudinary(file)
+        : await uploadToCloudinary(file);
 
       if (url) {
         callback(url); 
@@ -328,6 +378,7 @@ export default function AdminCMS({
       }
     } catch (err) {
       console.error("저장 과정 에러:", err);
+      alert("업로드 실패: " + (err.message || "알 수 없는 오류"));
     } finally {
       setLoading(false);
       e.target.value = ""; 
