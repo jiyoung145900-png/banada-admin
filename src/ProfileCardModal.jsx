@@ -529,22 +529,108 @@ export default function ProfileCardModal({ onClose }) {
     if (!cardRef.current) return;
     if (!window.html2canvas) return alert("잠시 후 다시 시도해주세요.");
     setSaving(true);
+
+    // ★ [핵심] 다운로드 시 카드 크기 고정 → 모바일에서 옆으로 퍼지는 문제 해결
+    const el = cardRef.current;
+    const originalStyle = {
+      width: el.style.width,
+      maxWidth: el.style.maxWidth,
+      margin: el.style.margin,
+    };
+    
     try {
-      const canvas = await window.html2canvas(cardRef.current, {
-        scale: 3, useCORS: true,
+      // 임시로 width 380 고정 (모바일에서도 데스크톱 비율로 캡처)
+      el.style.width = "380px";
+      el.style.maxWidth = "380px";
+      el.style.margin = "0";
+      
+      // 렌더링 대기 (brower reflow)
+      await new Promise(r => setTimeout(r, 50));
+      
+      const canvas = await window.html2canvas(el, {
+        scale: 3,          // 고해상도 (1140px 결과)
+        useCORS: true,
         backgroundColor: form.template === "ivory" ? "#f4efe3" : "#12110e",
+        width: 380,         // 명시적 width
+        windowWidth: 380,   // 가상 뷰포트 폭
       });
+      
       const safe = (s, fb) => (s || fb).replace(/[^\w가-힣ぁ-んァ-ヶ一-龯]+/g, "_").replace(/^_|_$/g, "") || fb;
       const link = document.createElement("a");
       link.download = `${safe(form.brandName, "BANADA")}_${safe(texts.ko.name || cur.name, "profile")}.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
+      
+      // 성공 토스트 (잠깐 보여주기)
+      showToast("✨ 프로필 카드 저장 완료!");
     } catch (err) {
       alert("저장 실패: " + err.message);
     } finally {
+      // 원래 스타일 복원
+      el.style.width = originalStyle.width;
+      el.style.maxWidth = originalStyle.maxWidth;
+      el.style.margin = originalStyle.margin;
       setSaving(false);
     }
   }, [form, texts, cur]);
+
+  // ★ [신규] 모바일 네이티브 공유 (Web Share API)
+  const handleShare = useCallback(async () => {
+    if (!cardRef.current || !window.html2canvas) return;
+    if (!navigator.share) return handleDownload();  // Share API 없으면 다운로드로 대체
+    
+    setSaving(true);
+    const el = cardRef.current;
+    const originalStyle = {
+      width: el.style.width,
+      maxWidth: el.style.maxWidth,
+      margin: el.style.margin,
+    };
+    
+    try {
+      el.style.width = "380px";
+      el.style.maxWidth = "380px";
+      el.style.margin = "0";
+      await new Promise(r => setTimeout(r, 50));
+      
+      const canvas = await window.html2canvas(el, {
+        scale: 3, useCORS: true,
+        backgroundColor: form.template === "ivory" ? "#f4efe3" : "#12110e",
+        width: 380, windowWidth: 380,
+      });
+      
+      canvas.toBlob(async (blob) => {
+        try {
+          const file = new File([blob], `${form.brandName || "BANADA"}_profile.png`, { type: "image/png" });
+          await navigator.share({
+            files: [file],
+            title: `${form.brandName || "BANADA"} Profile`,
+            text: cur.name || "",
+          });
+        } catch (err) {
+          if (err.name !== "AbortError") alert("공유 실패: " + err.message);
+        } finally {
+          el.style.width = originalStyle.width;
+          el.style.maxWidth = originalStyle.maxWidth;
+          el.style.margin = originalStyle.margin;
+          setSaving(false);
+        }
+      }, "image/png");
+    } catch (err) {
+      el.style.width = originalStyle.width;
+      el.style.maxWidth = originalStyle.maxWidth;
+      el.style.margin = originalStyle.margin;
+      setSaving(false);
+      alert("공유 실패: " + err.message);
+    }
+  }, [form, texts, cur, handleDownload]);
+
+  // ★ [신규] 토스트 메시지
+  const [toastMsg, setToastMsg] = useState("");
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(""), 2000);
+  };
 
   // ─────────── 파생 데이터 ───────────
   const title = [cur.name, form.age].filter(Boolean).join(", ");
@@ -755,10 +841,43 @@ export default function ProfileCardModal({ onClose }) {
               ))}
             </div>
 
-            <button onClick={handleDownload} disabled={saving} style={{ ...ov.downloadBtn, opacity: saving ? 0.5 : 1 }}>
-              {saving ? t.saving : t.save}
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={handleDownload} disabled={saving} style={{ ...ov.downloadBtn, opacity: saving ? 0.5 : 1, flex: 1 }}>
+                {saving ? t.saving : `⬇ ${t.save}`}
+              </button>
+              {/* 모바일 네이티브 공유 버튼 (지원 기기만 표시) */}
+              {typeof navigator !== "undefined" && navigator.share && (
+                <button
+                  onClick={handleShare}
+                  disabled={saving}
+                  style={{
+                    ...ov.downloadBtn,
+                    opacity: saving ? 0.5 : 1,
+                    background: "linear-gradient(135deg, #f0c400, #e6a800)",
+                    color: "#000",
+                    minWidth: 56,
+                  }}
+                  title="공유하기"
+                >
+                  📤
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* ★ [신규] 토스트 메시지 */}
+          {toastMsg && (
+            <div style={{
+              position: "fixed", bottom: 30, left: "50%", transform: "translateX(-50%)",
+              background: "rgba(0,0,0,0.9)", color: "#f0c400",
+              padding: "12px 24px", borderRadius: 24, fontSize: 14, fontWeight: 700,
+              zIndex: 100000, border: "1px solid rgba(240,196,0,0.4)",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+              animation: "toastFade 0.3s ease",
+            }}>
+              {toastMsg}
+            </div>
+          )}
 
           {/* ══ 오른쪽: 카드 미리보기 ══ */}
           <div style={ov.previewSide}>
