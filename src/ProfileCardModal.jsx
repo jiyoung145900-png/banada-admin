@@ -408,6 +408,7 @@ export default function ProfileCardModal({ onClose }) {
       photo: null, photoPos: 28,
       logo: BANADA_LOGO, useDefaultLogo: true,
       brandName: "BANADA", template: "noir", lang: "ko",
+      qrLink: "https://t.me/banadamarketing",  // ★ QR 코드 기본 링크
     };
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -421,6 +422,7 @@ export default function ProfileCardModal({ onClose }) {
           lang: L[s.lang] ? s.lang : "ko",
           useDefaultLogo: useDefault,
           logo: useDefault ? BANADA_LOGO : null,
+          qrLink: s.qrLink || "https://t.me/banadamarketing",
         };
       }
     } catch { /* 무시 */ }
@@ -445,9 +447,10 @@ export default function ProfileCardModal({ onClose }) {
         template: form.template,
         lang: form.lang,
         useDefaultLogo: form.useDefaultLogo,
+        qrLink: form.qrLink,
       }));
     } catch { /* 무시 */ }
-  }, [form.brandName, form.template, form.lang, form.useDefaultLogo]);
+  }, [form.brandName, form.template, form.lang, form.useDefaultLogo, form.qrLink]);
 
   // html2canvas 미리 로드
   useEffect(() => {
@@ -456,6 +459,46 @@ export default function ProfileCardModal({ onClose }) {
     s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
     document.head.appendChild(s);
   }, []);
+
+  // ★ [신규] QR 코드 라이브러리 로드 (qrcode-generator - 가볍고 빠름)
+  useEffect(() => {
+    if (window.qrcode) return;
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js";
+    document.head.appendChild(s);
+  }, []);
+
+  // ★ [신규] QR 코드 생성 (상담 유도용)
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  useEffect(() => {
+    const genQR = () => {
+      try {
+        if (!window.qrcode) return;
+        const qrLink = form.qrLink || "https://t.me/banadamarketing";
+        const qr = window.qrcode(0, "M");
+        qr.addData(qrLink);
+        qr.make();
+        setQrDataUrl(qr.createDataURL(4, 2));
+      } catch (e) {
+        console.warn("QR 생성 실패:", e);
+      }
+    };
+    
+    if (window.qrcode) {
+      genQR();
+    } else {
+      // 라이브러리 로드 대기
+      const check = setInterval(() => {
+        if (window.qrcode) {
+          genQR();
+          clearInterval(check);
+        }
+      }, 100);
+      // 5초 후 타임아웃
+      setTimeout(() => clearInterval(check), 5000);
+      return () => clearInterval(check);
+    }
+  }, [form.qrLink]);
 
   const handlePhoto = async (e) => {
     const file = e.target.files?.[0];
@@ -561,8 +604,6 @@ export default function ProfileCardModal({ onClose }) {
       link.href = canvas.toDataURL("image/png");
       link.click();
       
-      // 성공 토스트 (잠깐 보여주기)
-      showToast("✨ 프로필 카드 저장 완료!");
     } catch (err) {
       alert("저장 실패: " + err.message);
     } finally {
@@ -573,64 +614,6 @@ export default function ProfileCardModal({ onClose }) {
       setSaving(false);
     }
   }, [form, texts, cur]);
-
-  // ★ [신규] 모바일 네이티브 공유 (Web Share API)
-  const handleShare = useCallback(async () => {
-    if (!cardRef.current || !window.html2canvas) return;
-    if (!navigator.share) return handleDownload();  // Share API 없으면 다운로드로 대체
-    
-    setSaving(true);
-    const el = cardRef.current;
-    const originalStyle = {
-      width: el.style.width,
-      maxWidth: el.style.maxWidth,
-      margin: el.style.margin,
-    };
-    
-    try {
-      el.style.width = "380px";
-      el.style.maxWidth = "380px";
-      el.style.margin = "0";
-      await new Promise(r => setTimeout(r, 50));
-      
-      const canvas = await window.html2canvas(el, {
-        scale: 3, useCORS: true,
-        backgroundColor: form.template === "ivory" ? "#f4efe3" : "#12110e",
-        width: 380, windowWidth: 380,
-      });
-      
-      canvas.toBlob(async (blob) => {
-        try {
-          const file = new File([blob], `${form.brandName || "BANADA"}_profile.png`, { type: "image/png" });
-          await navigator.share({
-            files: [file],
-            title: `${form.brandName || "BANADA"} Profile`,
-            text: cur.name || "",
-          });
-        } catch (err) {
-          if (err.name !== "AbortError") alert("공유 실패: " + err.message);
-        } finally {
-          el.style.width = originalStyle.width;
-          el.style.maxWidth = originalStyle.maxWidth;
-          el.style.margin = originalStyle.margin;
-          setSaving(false);
-        }
-      }, "image/png");
-    } catch (err) {
-      el.style.width = originalStyle.width;
-      el.style.maxWidth = originalStyle.maxWidth;
-      el.style.margin = originalStyle.margin;
-      setSaving(false);
-      alert("공유 실패: " + err.message);
-    }
-  }, [form, texts, cur, handleDownload]);
-
-  // ★ [신규] 토스트 메시지
-  const [toastMsg, setToastMsg] = useState("");
-  const showToast = (msg) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(""), 2000);
-  };
 
   // ─────────── 파생 데이터 ───────────
   const title = [cur.name, form.age].filter(Boolean).join(", ");
@@ -660,7 +643,7 @@ export default function ProfileCardModal({ onClose }) {
     photo: {
       position: "relative", overflow: "hidden",
       background: isIvory ? "#ebe4d4" : "#1a1914",
-      height: isNoir ? 348 : isIvory ? 292 : 300,
+      height: isNoir ? 460 : isIvory ? 420 : 430,  // ★ 대폭 확대 (사진 위주)
       ...(isIvory ? { margin: "14px 14px 0", borderRadius: 12 } : {}),
     },
     photoImg: {
@@ -830,6 +813,15 @@ export default function ProfileCardModal({ onClose }) {
             <label style={ov.label}>{t.brand}</label>
             <input style={ov.input} placeholder="BANADA" value={form.brandName} onChange={e => set("brandName", e.target.value)} />
 
+            {/* ★ [신규] QR 링크 */}
+            <label style={ov.label}>QR LINK (상담 연결)</label>
+            <input 
+              style={ov.input} 
+              placeholder="https://t.me/banadamarketing" 
+              value={form.qrLink || ""} 
+              onChange={e => set("qrLink", e.target.value)} 
+            />
+
             {/* 템플릿 */}
             <label style={ov.label}>{t.style}</label>
             <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
@@ -841,43 +833,10 @@ export default function ProfileCardModal({ onClose }) {
               ))}
             </div>
 
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={handleDownload} disabled={saving} style={{ ...ov.downloadBtn, opacity: saving ? 0.5 : 1, flex: 1 }}>
-                {saving ? t.saving : `⬇ ${t.save}`}
-              </button>
-              {/* 모바일 네이티브 공유 버튼 (지원 기기만 표시) */}
-              {typeof navigator !== "undefined" && navigator.share && (
-                <button
-                  onClick={handleShare}
-                  disabled={saving}
-                  style={{
-                    ...ov.downloadBtn,
-                    opacity: saving ? 0.5 : 1,
-                    background: "linear-gradient(135deg, #f0c400, #e6a800)",
-                    color: "#000",
-                    minWidth: 56,
-                  }}
-                  title="공유하기"
-                >
-                  📤
-                </button>
-              )}
-            </div>
+            <button onClick={handleDownload} disabled={saving} style={{ ...ov.downloadBtn, opacity: saving ? 0.5 : 1 }}>
+              {saving ? t.saving : t.save}
+            </button>
           </div>
-
-          {/* ★ [신규] 토스트 메시지 */}
-          {toastMsg && (
-            <div style={{
-              position: "fixed", bottom: 30, left: "50%", transform: "translateX(-50%)",
-              background: "rgba(0,0,0,0.9)", color: "#f0c400",
-              padding: "12px 24px", borderRadius: 24, fontSize: 14, fontWeight: 700,
-              zIndex: 100000, border: "1px solid rgba(240,196,0,0.4)",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-              animation: "toastFade 0.3s ease",
-            }}>
-              {toastMsg}
-            </div>
-          )}
 
           {/* ══ 오른쪽: 카드 미리보기 ══ */}
           <div style={ov.previewSide}>
@@ -926,11 +885,34 @@ export default function ProfileCardModal({ onClose }) {
                 {stats.length > 0 && <p style={C.stats}>{stats.join("  ·  ")}</p>}
                 {cur.charm && <p style={C.charm}>{cur.charm}</p>}
                 {cur.bio && <p style={C.bio}>{cur.bio}</p>}
-                {hobbies.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 18 }}>
+                
+                {/* ★ [신규] 하단: 태그 (왼쪽) + QR (오른쪽) 가로 레이아웃 */}
+                <div style={{ 
+                  display: "flex", 
+                  alignItems: "flex-end", 
+                  gap: 12, 
+                  marginTop: 14 
+                }}>
+                  <div style={{ flex: 1, display: "flex", flexWrap: "wrap", gap: 6 }}>
                     {hobbies.map((h, i) => <span key={i} style={C.tag}>{h}</span>)}
                   </div>
-                )}
+                  {qrDataUrl && (
+                    <div style={{
+                      flex: "0 0 auto",
+                      background: isIvory ? "#fff" : "#f4efe3",
+                      padding: 5,
+                      borderRadius: 6,
+                      boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+                    }}>
+                      <img 
+                        src={qrDataUrl} 
+                        alt="QR" 
+                        crossOrigin="anonymous"
+                        style={{ width: 58, height: 58, display: "block" }} 
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
