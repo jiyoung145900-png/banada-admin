@@ -3,17 +3,21 @@
  * 🎯 BANADA Cloud Functions - Main Entry Point
  * ============================================================================
  *
- * 2개의 Cloud Function:
+ * Cloud Functions:
  *
  * 1. onGameHistoryWritten (Firestore Trigger)
  *    - game_history/{round} 문서가 생성/수정될 때 즉시 실행
  *    - 그 라운드의 미정산 베팅 자동 처리
- *    - 라운드 끝나는 순간 바로 정산 (실시간)
  *
- * 2. scheduledSettlement (Scheduler)
- *    - 매 1분마다 자동 실행
- *    - 혹시 트리거가 놓친 베팅 처리 (안전망)
- *    - 최근 3라운드 이내만 처리
+ * 2. scheduledSettlement (Scheduler, every 1 min)
+ *    - 이벤트 베팅 안전망
+ *    - 바카라 테이블 타임아웃 체크 (★ 신규)
+ *
+ * 3. playBaccaratRound (★ 신규 - onCall)
+ *    - 유저 요청 시 바카라 라운드 진행
+ *    - 서버에서 결과 생성 + 정산
+ *
+ * 4. health (디버깅)
  * ============================================================================
  */
 
@@ -28,13 +32,16 @@ const { logger } = require("firebase-functions/v2");
 
 const { settleRound, scanRecentRounds } = require("./settlement");
 
+// ★ [신규] 바카라 로직
+const baccarat = require("./baccarat");
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Function 1: game_history 변경 시 즉시 정산 (실시간)
+// Function 1: game_history 변경 시 즉시 정산 (이벤트 베팅)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 exports.onGameHistoryWritten = onDocumentWritten(
   {
     document: "game_history/{roundId}",
-    region: "asia-northeast3",  // 서울 리전 (한국 유저 대상 - 가장 빠름)
+    region: "asia-northeast3",
     maxInstances: 10,
     timeoutSeconds: 60,
   },
@@ -42,7 +49,6 @@ exports.onGameHistoryWritten = onDocumentWritten(
     const roundId = event.params.roundId;
     const after = event.data?.after?.data();
     
-    // 삭제된 경우 무시
     if (!after) {
       logger.info(`ℹ️ game_history/${roundId} 삭제됨 - 정산 스킵`);
       return;
@@ -68,36 +74,52 @@ exports.onGameHistoryWritten = onDocumentWritten(
       logger.info(`✅ 트리거 정산 완료: round=${round}`, result);
     } catch (e) {
       logger.error(`❌ 트리거 정산 에러: round=${round}`, e);
-      throw e;  // 재시도 유도
-    }
-  }
-);
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Function 2: 1분마다 안전망 스캔
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-exports.scheduledSettlement = onSchedule(
-  {
-    schedule: "every 1 minutes",
-    region: "asia-northeast3",
-    timeoutSeconds: 300,  // 5분
-    maxInstances: 1,       // 동시 실행 1개만 (중복 처리 방지)
-  },
-  async (event) => {
-    logger.info(`⏰ 스케줄 정산 시작: ${new Date().toISOString()}`);
-    
-    try {
-      await scanRecentRounds();
-      logger.info(`✅ 스케줄 정산 완료`);
-    } catch (e) {
-      logger.error(`❌ 스케줄 정산 에러:`, e);
       throw e;
     }
   }
 );
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Function 3 (옵션): Health Check - 디버깅용
+// Function 2: 1분마다 안전망 스캔 (이벤트 + ★ 바카라 타임아웃)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+exports.scheduledSettlement = onSchedule(
+  {
+    schedule: "every 1 minutes",
+    region: "asia-northeast3",
+    timeoutSeconds: 300,
+    maxInstances: 1,
+  },
+  async (event) => {
+    logger.info(`⏰ 스케줄 정산 시작: ${new Date().toISOString()}`);
+    
+    // 이벤트 베팅 안전망
+    try {
+      await scanRecentRounds();
+      logger.info(`✅ 이벤트 정산 완료`);
+    } catch (e) {
+      logger.error(`❌ 이벤트 정산 에러:`, e);
+    }
+    
+    // ★ [신규] 바카라 타임아웃 체크 (유저 베팅 있는 테이블만)
+    try {
+      const db = admin.firestore();
+      const result = await baccarat.checkBaccaratTimeouts(db);
+      if (result.processed > 0) {
+        logger.info(`🎰 바카라 자동 처리: ${result.processed}개 테이블`);
+      }
+    } catch (e) {
+      logger.error(`❌ 바카라 타임아웃 에러:`, e);
+    }
+  }
+);
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ★ [신규] Function 3: 바카라 라운드 진행 (onCall)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+exports.playBaccaratRound = baccarat.playBaccaratRound;
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Function 4 (옵션): Health Check - 디버깅용
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const { onRequest } = require("firebase-functions/v2/https");
 const { getCurrentRound } = require("./settlement");
@@ -112,6 +134,7 @@ exports.health = onRequest(
       functions: {
         onGameHistoryWritten: "active",
         scheduledSettlement: "active (every 1 min)",
+        playBaccaratRound: "active (onCall)",
       },
     });
   }

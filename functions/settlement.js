@@ -39,6 +39,10 @@ const CONFIG = {
   START_TIME: new Date("2024-01-01T00:00:00Z").getTime(),
 };
 
+// ★ [신규] 아이템 리스트 (클라이언트 ITEM_CONFIG 와 동일)
+const ITEMS = ["인스타", "카카오", "틱톡", "유튜브"];
+const WINNERS_PER_ROUND = 2;  // 라운드당 당첨 아이템 개수
+
 const SETTLE_MAX_ROUNDS_BACK = 3;  // 최근 3라운드만 처리 (약 9분치)
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -56,6 +60,72 @@ function calcWinAmount(items, matchedCount, totalCost) {
 function getCurrentRound() {
   const elapsed = Date.now() - CONFIG.START_TIME;
   return CONFIG.BASE_ROUND + Math.floor(elapsed / (CONFIG.ROUND_DURATION * 1000));
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ★ [신규] 결과 생성 (어드민 조작 우선, 없으면 랜덤)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function generateWinnersForRound(round) {
+  const db = admin.firestore();
+  
+  // 1. 어드민 조작 체크 (event_manipulation 우선)
+  try {
+    const manipRef = db.collection("event_manipulation").doc(String(round));
+    const manipSnap = await manipRef.get();
+    if (manipSnap.exists) {
+      const data = manipSnap.data();
+      const winners = data.winner || data.items || data.winners;
+      if (Array.isArray(winners) && winners.length > 0) {
+        console.log(`🎯 round ${round}: 어드민 조작 결과 사용`, winners);
+        return winners;
+      }
+    }
+  } catch (e) {
+    console.warn(`⚠️ event_manipulation 조회 실패:`, e.message);
+  }
+  
+  // 2. 완전 랜덤 (Fisher-Yates 셔플)
+  const shuffled = [...ITEMS];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  const randomWinners = shuffled.slice(0, WINNERS_PER_ROUND);
+  console.log(`🎲 round ${round}: 랜덤 결과 생성`, randomWinners);
+  return randomWinners;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ★ [신규] 특정 라운드의 game_history 생성 (없으면 자동 생성)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function ensureGameHistory(round) {
+  const db = admin.firestore();
+  const historyRef = db.collection("game_history").doc(String(round));
+  const historySnap = await historyRef.get();
+  
+  // 이미 결과 있으면 그대로 반환
+  if (historySnap.exists) {
+    const data = historySnap.data();
+    const winners = data.winners || data.winner;
+    if (Array.isArray(winners) && winners.length > 0) {
+      return winners;
+    }
+  }
+  
+  // 결과 없으면 자동 생성 + 저장
+  const winners = await generateWinnersForRound(round);
+  
+  await historyRef.set({
+    round: round,
+    winner: winners,          // 클라이언트 호환 (단수 필드명)
+    winners: winners,         // 신규 (복수)
+    createdAt: Date.now(),
+    createdAtIso: new Date().toISOString(),
+    source: "auto_generated", // 자동 생성 표시
+  }, { merge: true });
+  
+  console.log(`💾 game_history/${round} 자동 생성 완료:`, winners);
+  return winners;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -205,65 +275,35 @@ async function settleRound(round, winners, triggeredBy = "trigger") {
 // 스케줄러용: 최근 N 라운드 전부 스캔
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function scanRecentRounds() {
-  const db = admin.firestore();
   const currentRound = getCurrentRound();
   const minRound = currentRound - SETTLE_MAX_ROUNDS_BACK;
   
   console.log(`🔍 스캔 범위: round ${minRound} ~ ${currentRound - 1} (current=${currentRound})`);
   
-  // 최근 game_history 가져오기 (단일 조건 - 인덱스 불필요)
-  const historySnap = await db.collection("game_history")
-    .where("round", ">=", minRound)
-    .get();
+  // ★ [수정] 끝난 모든 라운드에 대해 자동 결과 생성 + 정산
+  //   기존: game_history 있는 것만 처리 → 저장 안 된 라운드 영원히 미정산
+  //   수정: 끝난 라운드 모두 ensureGameHistory 호출 → 자동 생성 → 트리거가 정산
   
-  if (historySnap.empty) {
-    // round 필드 없이 id로 저장된 경우 대비 (어드민 코드 호환성)
-    const historyFallback = await db.collection("game_history")
-      .orderBy(admin.firestore.FieldPath.documentId(), "desc")
-      .limit(SETTLE_MAX_ROUNDS_BACK + 2)
-      .get();
-    
-    if (historyFallback.empty) {
-      console.log(`ℹ️ 처리할 game_history 없음`);
-      return;
-    }
-    
-    let totalProcessed = 0;
-    for (const historyDoc of historyFallback.docs) {
-      const data = historyDoc.data();
-      const round = parseInt(data.round || historyDoc.id, 10);
+  let totalEnsured = 0;
+  let totalProcessed = 0;
+  
+  for (let round = minRound; round < currentRound; round++) {
+    try {
+      // 1. game_history 보장 (없으면 자동 생성)
+      const winners = await ensureGameHistory(round);
+      totalEnsured++;
       
-      if (isNaN(round)) continue;
-      if (round >= currentRound) continue;
-      if (round < minRound) continue;
-      
-      const winners = data.winners || data.winner;
-      if (!winners) continue;
-      
+      // 2. 그 라운드 미정산 베팅 처리
+      //    (onGameHistoryWritten 트리거가 이미 처리했을 수도 있지만, 
+      //     트리거 놓친 베팅을 안전망으로 재처리)
       const result = await settleRound(round, winners, "scheduled");
       totalProcessed += result.processed;
+    } catch (e) {
+      console.error(`❌ round ${round} 스캔 실패:`, e.message);
     }
-    
-    console.log(`✅ 스케줄 스캔 완료: 총 ${totalProcessed}건 처리`);
-    return;
   }
   
-  let totalProcessed = 0;
-  for (const historyDoc of historySnap.docs) {
-    const data = historyDoc.data();
-    const round = parseInt(data.round || historyDoc.id, 10);
-    
-    if (isNaN(round)) continue;
-    if (round >= currentRound) continue;
-    
-    const winners = data.winners || data.winner;
-    if (!winners) continue;
-    
-    const result = await settleRound(round, winners, "scheduled");
-    totalProcessed += result.processed;
-  }
-  
-  console.log(`✅ 스케줄 스캔 완료: 총 ${totalProcessed}건 처리`);
+  console.log(`✅ 스케줄 스캔 완료: ${totalEnsured}개 라운드 확인 / 총 ${totalProcessed}건 정산`);
 }
 
 module.exports = {
@@ -271,5 +311,8 @@ module.exports = {
   scanRecentRounds,
   getCurrentRound,
   calcWinAmount,
+  generateWinnersForRound,  // ★ [신규]
+  ensureGameHistory,          // ★ [신규]
   CONFIG,
+  ITEMS,                      // ★ [신규]
 };
