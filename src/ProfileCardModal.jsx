@@ -408,7 +408,7 @@ export default function ProfileCardModal({ onClose }) {
       photo: null, photoPos: 28,
       logo: BANADA_LOGO, useDefaultLogo: true,
       brandName: "BANADA", template: "noir", lang: "ko",
-      qrLink: "https://t.me/banadamarketing",  // ★ QR 코드 기본 링크
+      qrLink: "https://t.me/banada_consult_bot",  // ★ QR 코드 기본 링크
     };
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -422,7 +422,7 @@ export default function ProfileCardModal({ onClose }) {
           lang: L[s.lang] ? s.lang : "ko",
           useDefaultLogo: useDefault,
           logo: useDefault ? BANADA_LOGO : null,
-          qrLink: s.qrLink || "https://t.me/banadamarketing",
+          qrLink: s.qrLink || "https://t.me/banada_consult_bot",
         };
       }
     } catch { /* 무시 */ }
@@ -474,7 +474,7 @@ export default function ProfileCardModal({ onClose }) {
     const genQR = () => {
       try {
         if (!window.qrcode) return;
-        const qrLink = form.qrLink || "https://t.me/banadamarketing";
+        const qrLink = form.qrLink || "https://t.me/banada_consult_bot";
         const qr = window.qrcode(0, "M");
         qr.addData(qrLink);
         qr.make();
@@ -817,7 +817,7 @@ export default function ProfileCardModal({ onClose }) {
             <label style={ov.label}>QR LINK (상담 연결)</label>
             <input 
               style={ov.input} 
-              placeholder="https://t.me/banadamarketing" 
+              placeholder="https://t.me/banada_consult_bot" 
               value={form.qrLink || ""} 
               onChange={e => set("qrLink", e.target.value)} 
             />
